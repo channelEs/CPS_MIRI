@@ -1,0 +1,71 @@
+\documentclass[a4paper, 12pt]{report}
+% \documentclass[a4paper, 12pt]{article}
+
+% --- PACKAGES ---
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[margin=2.5cm]{geometry} % Set margins
+\usepackage{amsmath}                % For math formulas
+\usepackage{amssymb}                % For math symbols
+\usepackage{graphicx}               % To include images
+\usepackage{caption}                % For image captions
+\usepackage{booktabs}               % For professional tables (if needed)
+\usepackage{hyperref}               % For clickable links
+\usepackage{parskip}                % Adds space between paragraphs, no indent
+
+\usepackage{graphicx} % Required for inserting images
+\usepackage{amsmath}
+% \usepackage[margin=1in]{geometry}
+\usepackage{comment}
+
+\title{Computational Complexity (CPS-MIRI)\\CP assignment\\Report}
+\author{Roger Canal Estrada, roger.canal@estudiantat.upc.edu\\
+}
+\date{Course 2025/2026}
+
+\usepackage{listings}
+\usepackage{color}
+\usepackage{subcaption}
+\usepackage{float}
+\usepackage{url}
+ \usepackage{hyperref}
+ 
+\definecolor{dkgreen}{rgb}{0,0.6,0}
+\definecolor{gray}{rgb}{0.5,0.5,0.5}
+\definecolor{mauve}{rgb}{0.58,0,0.82}
+
+\lstset{frame=tb,
+  language=C,
+  aboveskip=3mm,
+  belowskip=3mm,
+  showstringspaces=false,
+  columns=flexible,
+  basicstyle={\small\ttfamily},
+  numbers=none,
+  numberstyle=\tiny\color{gray},
+  keywordstyle=\color{blue},
+  commentstyle=\color{dkgreen},
+  stringstyle=\color{mauve},
+  breaklines=true,
+  breakatwhitespace=true,
+  tabsize=3
+}
+
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue,
+    filecolor=magenta,      
+    urlcolor=blue,
+    pdftitle={Empirical Study of Balanced Allocations},
+    pdfauthor={Your Name Here}
+}
+
+\begin{document}
+
+\maketitle
+% \tableofcontents
+
+\newpage
+\input{CP/report}
+
+\end{document}

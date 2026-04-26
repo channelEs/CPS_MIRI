@@ -1,0 +1,71 @@
+\section*{Variables}
+The model is constructed using three main types of integer variables, managed by the Gecode solver.
+
+\subsection*{Decision Variables}
+\begin{itemize}
+    \item \texttt{open\_streets\_mat} (\textit{IntVarArray of size $n \times n$}): 
+    This is the primary decision variable array, representing the final directed graph. Each element has a boolean domain $\{0, 1\}$. A value of $1$ indicates that the street from crossing $i$ to $j$ is active and open to traffic, while $0$ means it is closed.
+\end{itemize}
+
+\subsection*{Auxiliary Variables}
+\begin{itemize}
+    \item \texttt{travel\_times} (\textit{IntVarArray of size $(n+1) \times n \times n$}): 
+    Is a 3d matrix used to try all the possible combinations of new crossings from i->j. It represents the shortest travel time from $i$ to $j$ using intermediate vertices up to $k$. The domain of this variable is bounded from $0$ to a large integer value (1000).
+\end{itemize}
+
+\subsection*{Objective Variable}
+\begin{itemize}
+    \item \texttt{converted\_streets} (\textit{IntVar}): 
+    The total number of two-way streets successfully converted to one-way. The domain is strictly between $0$ and the total number of original two-way streets in the city.
+\end{itemize}
+
+\section*{Constraints}
+
+\subsection*{Base Case: (Layer 0 of the travel\_times\ matrix)}
+For the first layer of \texttt{travel\_times} ($k=0$), the distances rely directly on the decisions made in \texttt{open\_streets\_mat}. An If-Then-Else (\texttt{ite}) constraint is used:
+\begin{equation}
+    D^{(0)}_{i,j} = 
+    \begin{cases} 
+        0 & \text{if } i = j \\
+        T_{i,j} & \text{if } \texttt{open\_streets\_mat}_{i,j} = 1 \\
+        \infty & \text{otherwise}
+    \end{cases}
+\end{equation}
+
+\subsection*{Shortest Path Calculation}
+To compute the final travel times without cyclic assignments, non-binary constraints map the relationship between layers. For each layer $k \in \{0, \dots, n-1\}$, the model enforces:
+\begin{equation}
+    D^{(k+1)}_{i,j} = \min \left( D^{(k)}_{i,j}, \min(D^{(k)}_{i,k} + D^{(k)}_{k,j}, \infty) \right)
+\end{equation}
+
+\subsection*{Time Contract Limit}
+Using the original shortest path $S_{i,j}$ and the tolerance $P\%$, a limit $L_{i,j} = S_{i,j} \times (1 + \frac{P}{100})$ is pre-computed. The constraint is applied to the final layer $n$ of the \texttt{travel\_times} matrix:
+\begin{equation}
+    D^{(n)}_{i,j} \le L_{i,j}
+\end{equation}
+If the solver closes a street that forces a path to exceed this limit, immediately detects a domain wipeout and triggers a backtrack.
+
+\subsection*{Street Integrity and Topology}
+The solver must respect the original infrastructure. For every pair of crossings $(i, j)$:
+\begin{itemize}
+    \item \textbf{Original Two-Way Streets:} At least one direction must remain open. With the constraint: $\texttt{open\_streets\_mat}_{i,j} + \texttt{open\_streets\_mat}_{j,i} \ge 1$. This prevents the solver from "deleting" streets entirely.
+    \item \textbf{Original One-Way Streets:} Forced to remain exactly as they were (e.g., $i \to j = 1$ and $j \to i = 0$).
+    \item \textbf{Non-existent Streets:} Forced to $0$ in both directions.
+\end{itemize}
+
+\subsection*{Objective Calculation}
+The objective value is the total number of two-way streets converted to one-way. This can be computed as the sum of all active directions. Since an unconverted street contributes $2$ and a converted street contributes $1$:
+\begin{equation}
+    \text{converted\_streets} = (2 \times \text{total\_two\_way}) - \text{Sum(\texttt{active\_two\_way\_edges})}
+\end{equation}
+
+\section*{Some notes}
+
+\textbf{Branch and Bound (BAB):} 
+I used the BAB algorithm to search in the tree solutions, plus with the constrain method, it ensures that the next solution will have a higher \texttt{converted\_streets} value. 
+
+\textbf{Branching:} 
+In the branch method, it branches in \texttt{open\_streets\_mat} using \texttt{INT\_VAR\_NONE()} and \texttt{INT\_VAL\_MIN()}. By attempting to assign $0$ first, the solver greedily tries to close streets (convert them) early in the search tree.
+
+\textbf{Code notes:}
+In the sdp.cpp file, I added comments on each step. This report does an overall explanation of thecnical concepts, but I hope that the code comments helps to understand my implementation!
