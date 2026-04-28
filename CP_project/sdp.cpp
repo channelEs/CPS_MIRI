@@ -203,12 +203,25 @@ int main() {
     // Once the input is readed/imported, we have T as the input 'graph'
     // the idea is to pre-proces the input so the model can be more efficient:
 
+    vector<vector<int>> orig_shortest_mat = streets_graph;
     vector<vector<int>> max_time_allowed_matrix(n, vector<int>(n, -1)); // matrix with the maximum traver time allowed by the statement (the %P function)
-    // this will is used as the upper bound that the model has to respect in each path
+    
+    // To calculate the maximum time allowed for each path i->j, first I need to know the current shortest path:
+    // I used the loop from the CHECKER.cc that iterates over all possible paths, and I added a checker to take the best option.
+    // later in the model, this will be used as the upper bound that the model has to respect in each path
+    for (int k = 0; k < n; ++ k)
+        for (int i = 0; i < n; ++i)
+            for (int j = 0; j < n; ++j) {
+                if (orig_shortest_mat[i][k] != -1 && orig_shortest_mat[k][j] != -1) {
+                    if (orig_shortest_mat[i][j] != -1) orig_shortest_mat[i][j] = min(orig_shortest_mat[i][j], orig_shortest_mat[i][k] + orig_shortest_mat[k][j]);
+                    else orig_shortest_mat[i][j] = orig_shortest_mat[i][k] + orig_shortest_mat[k][j];
+                }
+            }
+            
     for (int i = 0; i < n; ++i) {
         for (int j = 0; j < n; ++j) {
-            if (streets_graph[i][j] != -1) {
-                int limit = streets_graph[i][j] + (streets_graph[i][j] * (P / 100.0));
+            if (orig_shortest_mat[i][j] != -1) {
+                int limit = orig_shortest_mat[i][j] + (orig_shortest_mat[i][j] * (P / 100.0));
                 max_time_allowed_matrix[i][j] = limit;
                 // max_time_allowed_matrix[i][j] = INT_MAX;
             }
@@ -222,7 +235,7 @@ int main() {
             if (streets_graph[i][j] != -1 && streets_graph[j][i] != -1) total_two_way++;
         }
     }
-    total_two_way = n * (n - 1) / 2;
+    // total_two_way = n * (n - 1) / 2;
 
     // here ends the input pre proces and the model is initialized
 
@@ -232,12 +245,20 @@ int main() {
     // int best_count_converted = 0;
 
     while (StreetDirectionalProblem_CP* s = search.next()) {
-        // s.print(); // debug print 
+        // s->print(); // debug print 
         delete best_solution;
         best_solution = s; 
     }
     
     if (best_solution) {
+        cout << n << endl;
+        for (int i = 0; i < n; ++i) {
+            for (int j = 0; j < n; ++j) {
+                cout << streets_graph[i][j] << " ";
+            }
+            cout << endl;
+        }
+        cout << P << endl;
         best_solution->final_print(streets_graph);
         delete best_solution;
     } else {
