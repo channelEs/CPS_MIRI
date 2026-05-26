@@ -9,13 +9,13 @@ START=$1
 END=$2
 
 for i in $(seq $START $END); do
-    INPUT="instances/sdp.$i.inp"
+    INPUT="../instances/sdp.$i.inp"
     OUTPUT="out/sdp.$i.out"
     
     echo "RUN INSTANCE $INPUT..."
     ./sdp < "$INPUT" > "$OUTPUT"
     
-    ./checker < "$OUTPUT"
+    ../checker < "$OUTPUT"
     echo "-----------------------------------"
 done
 
