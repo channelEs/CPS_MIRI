@@ -65,14 +65,14 @@ int main() {
         IloModel model(env);
 
         // --- VARIABLES ---
-        // E[i*n + j]: Binary variable, 1 if street i -> j is kept open
-        IloBoolVarArray E(env, n * n);
-        auto idx2 = [&](int i, int j) { return i * n + j; };
+        // binary variable, 1 if street i -> j is open
+        // represented as an array of size n*n, where the index is i*n + j
+        IloBoolVarArray streets_state(env, n * n);
 
-        // X[s][d][i][j]: Flow variable. 1 if path from s to d uses street i -> j.
-        // We use a 4D vector of IloNumVar to only allocate memory for paths that exist.
-        // Using ILOFLOAT (continuous 0.0 to 1.0) is much faster for flow conservation than ILOINT!
-        vector<vector<vector<vector<IloNumVar>>>> X(n, vector<vector<vector<IloNumVar>>>(n, 
+        // current_paths[s][d][i][j]: int variable. 1 if path from s to d uses street i -> j.
+        // the first two dimensions represents the source and destination, 
+        // and the last two dimensions represents if the street from i to j is used in the path
+        vector<vector<vector<vector<IloNumVar>>>> current_paths(n, vector<vector<vector<IloNumVar>>>(n, 
                vector<vector<IloNumVar>>(n, vector<IloNumVar>(n))));
 
         for (int s = 0; s < n; ++s) {
@@ -81,7 +81,7 @@ int main() {
                 for (int i = 0; i < n; ++i) {
                     for (int j = 0; j < n; ++j) {
                         if (streets_graph[i][j] != -1) {
-                            X[s][d][i][j] = IloNumVar(env, 0, 1, ILOFLOAT);
+                            current_paths[s][d][i][j] = IloNumVar(env, 0, 1, ILOINT);
                         }
                     }
                 }
@@ -92,27 +92,29 @@ int main() {
         for (int i = 0; i < n; ++i) {
             for (int j = i + 1; j < n; ++j) {
                 if (streets_graph[i][j] != -1 && streets_graph[j][i] != -1) {
-                    // At least one direction must be open
-                    model.add(E[idx2(i, j)] + E[idx2(j, i)] >= 1);
-                    // Add to objective sum
-                    converted_expr += (2 - (E[idx2(i, j)] + E[idx2(j, i)]));
+                    // in case there is a two-way street:
+                    // one must stick open
+                    model.add(streets_state[i * n + j] + streets_state[j * n + i] >= 1);
+                    // and this expresion tells to the objective functions that is better to convert one of them,
+                    // if both are open, the contribution to the objective function is 0, 
+                    // if one of them is closed, the contribution is 1
+                    converted_expr += (2 - (streets_state[i * n + j] + streets_state[j * n + i]));
                 } else if (streets_graph[i][j] != -1) {
-                    // One-way street i -> j
-                    model.add(E[idx2(i, j)] == 1);
-                    model.add(E[idx2(j, i)] == 0);
+                    // one-way street i -> j
+                    model.add(streets_state[i * n + j] == 1);
+                    model.add(streets_state[j * n + i] == 0);
                 } else if (streets_graph[j][i] != -1) {
-                    // One-way street j -> i
-                    model.add(E[idx2(i, j)] == 0);
-                    model.add(E[idx2(j, i)] == 1);
-                } else {
-                    // No street 
-                    model.add(E[idx2(i, j)] == 0);
-                    model.add(E[idx2(j, i)] == 0);
+                    // one-way street j -> i
+                    model.add(streets_state[i * n + j] == 0);
+                    model.add(streets_state[j * n + i] == 1);
+                } else { 
+                    model.add(streets_state[i * n + j] == 0);
+                    model.add(streets_state[j * n + i] == 0);
                 }
             }
         }
 
-        // Maximize converted streets
+        // Maximize number of converted streets
         model.add(IloMaximize(env, converted_expr));
         converted_expr.end();
 
@@ -124,22 +126,26 @@ int main() {
                 IloExpr path_length(env);
 
                 for (int i = 0; i < n; ++i) {
+                    // in here I set the flow constraint and the max time constraint
                     IloExpr flow_out(env);
                     IloExpr flow_in(env);
 
                     for (int j = 0; j < n; ++j) {
                         if (streets_graph[i][j] != -1) {
-                            // Path validity: Cannot send flow through a closed street
-                            model.add(X[s][d][i][j] <= E[idx2(i, j)]);
-                            flow_out += X[s][d][i][j];
-                            path_length += (streets_graph[i][j] * X[s][d][i][j]);
+                            // Path check: Cannot send flow through a closed street
+                            model.add(current_paths[s][d][i][j] <= streets_state[i * n + j]);
+                            flow_out += current_paths[s][d][i][j];
+                            path_length += (streets_graph[i][j] * current_paths[s][d][i][j]);
                         }
                         if (streets_graph[j][i] != -1) {
-                            flow_in += X[s][d][j][i];
+                            flow_in += current_paths[s][d][j][i];
                         }
                     }
 
-                    // Flow Conservation
+                    // to know if there is a continious path from s to d:
+                    // the flow that goes out of a node must be the same that goes in
+                    
+                    // !! except for the source and destination !!
                     if (i == s) {
                         model.add(flow_out - flow_in == 1); // Source sends 1 unit
                     } else if (i == d) {
@@ -150,12 +156,14 @@ int main() {
                     flow_out.end();
                     flow_in.end();
                 }
+
+                // As in CP, I used the precomputed max_time allowed for each path, so I can easily add the constraint
                 model.add(path_length <= max_time_allowed_matrix[s][d]);
                 path_length.end();
             }
         }
         IloCplex cplex(model);
-        // THIS NEEDS TO BE SET!! CPLEX prints a lot of strange logs (good for debugging)
+        // THIS NEEDS TO BE SET!! CPLEX prints a lot of strange logs (good for debugging, but the checker fails ;( )
         cplex.setOut(env.getNullStream());
         cplex.setWarning(env.getNullStream());
 
@@ -163,20 +171,32 @@ int main() {
             auto end_time = chrono::high_resolution_clock::now();
             chrono::duration<double> diff = end_time - start_time;
 
-            cout << (int)(cplex.getObjValue() + 0.5) << endl;
+            cout << n << endl;
             for (int i = 0; i < n; ++i) {
                 for (int j = 0; j < n; ++j) {
-                    if (i == j) {
-                        cout << 0;
-                    } else if (cplex.getValue(E[idx2(i, j)]) > 0.5) {
-                        cout << streets_graph[i][j];
-                    } else {
-                        cout << -1;
-                    }
-                    cout << (j == n - 1 ? "" : " ");
+                    cout << streets_graph[i][j] << (j == n - 1 ? "" : " ");
                 }
                 cout << endl;
             }
+            cout << (int)P << endl; // as the statement says "only contain integer values"
+            for (int i = 0; i < n; ++i) {
+                for (int j = i + 1; j < n; ++j) {
+                    if (streets_graph[i][j] != -1 && streets_graph[j][i] != -1) {
+                        bool open_ij = (cplex.getValue(streets_state[i * n + j]) > 0.5);
+                        bool open_ji = (cplex.getValue(streets_state[j * n + i]) > 0.5);
+
+                        // If it was converted to one-way i -> j
+                        if (open_ij && !open_ji) {
+                            cout << i << " " << j << endl;
+                        }
+                        // If it was converted to one-way j -> i
+                        else if (!open_ij && open_ji) {
+                            cout << j << " " << i << endl;
+                        }
+                    }
+                }
+            }
+            cout << (int)(cplex.getObjValue() + 0.5) << endl;
             
             // checker ignores cerr
             cerr << "ILP Execution Time: " << diff.count() << " s\n";

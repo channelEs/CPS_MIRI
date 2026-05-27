@@ -1,0 +1,46 @@
+RUN INSTANCE ../instances/sdp.40.inp...
+OK
+-----------------------------------
+RUN INSTANCE ../instances/sdp.41.inp...
+OK
+-----------------------------------
+RUN INSTANCE ../instances/sdp.42.inp...
+OK
+-----------------------------------
+RUN INSTANCE ../instances/sdp.43.inp...
+OK
+-----------------------------------
+RUN INSTANCE ../instances/sdp.44.inp...
+OK
+-----------------------------------
+RUN INSTANCE ../instances/sdp.45.inp...
+OK
+-----------------------------------
+RUN INSTANCE ../instances/sdp.46.inp...
+OK
+-----------------------------------
+RUN INSTANCE ../instances/sdp.47.inp...
+OK
+-----------------------------------
+RUN INSTANCE ../instances/sdp.48.inp...
+OK
+-----------------------------------
+RUN INSTANCE ../instances/sdp.49.inp...
+OK
+-----------------------------------
+RUN INSTANCE ../instances/sdp.50.inp...
+OK
+-----------------------------------
+Ok!
+
+ILP Execution Time: 0.01397 s
+ILP Execution Time: 0.00829628 s
+ILP Execution Time: 0.00348242 s
+ILP Execution Time: 0.00886293 s
+ILP Execution Time: 0.00348095 s
+ILP Execution Time: 0.00917429 s
+ILP Execution Time: 0.00648534 s
+ILP Execution Time: 0.0145298 s
+ILP Execution Time: 0.00365552 s
+ILP Execution Time: 0.0113637 s
+ILP Execution Time: 0.00701657 s
