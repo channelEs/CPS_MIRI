@@ -1,0 +1,119 @@
+\section*{Introduction}
+This is the report for the Integer Linear Programming (ILP) model to solve the Street Directionality Problem (SDP).
+I will jump directly to the variables, then the contraints, the objective function, and some implementation notes. 
+The code is in my public \href{https://github.com/channelEs/CPS_MIRI}{GitHub repository}.
+
+\section*{Variables}
+
+\subsection*{Decision Variables}
+\begin{itemize}
+    \item \texttt{streets\_state} (\textit{IloBoolVarArray of size $n \times n$}): \\
+    This binary decision array represents the operational directed graph layout. Each element maps to coordinates via the linear layout $i \cdot n + j$. 
+    \begin{equation}
+        \texttt{streets\_state}_{i \cdot n + j} = 
+        \begin{cases} 
+            1 & \text{if the directed lane } i \to j \text{ is open to traffic} \\
+            0 & \text{if the lane is closed (parking)}
+        \end{cases}
+    \end{equation}
+\end{itemize}
+
+\subsection*{Auxiliary Variables}
+\begin{itemize}
+    \item \texttt{current\_paths} (\textit{4 dimensions vector of \texttt{IloNumVar}}): \\
+    This variable is a bit tricky. The idea is to have track of the paths for every source-destination pair.
+    For every active source-destination pair $(s,d)$ across every physical street segment $(i,j)$:
+    \begin{equation}
+        \texttt{current\_paths}[s][d][i][j] = 
+        \begin{cases} 
+            1 & \text{if the unique path from $(s,d)$ uses lane } i \to j \\
+            0 & \text{otherwise}
+        \end{cases}
+    \end{equation}
+    That is why it uses four dimensions: the first two for the source and destination, and the last two for the physical street segments.
+\end{itemize}
+
+\subsection*{Objective Variable}
+\begin{itemize}
+    \item \texttt{converted\_expr} (\textit{IloExpr}): \\
+    A linear expression tracking the total quantity of converted two-way streets. Its values range between $0$ and the result of the preprocessing of the input (\texttt{total\_two\_way}).
+\end{itemize}
+
+\section*{Constraints}
+
+\subsection*{Street Constraints}
+For every unique node pair $(i, j)$ where $j > i$:
+\begin{itemize}
+    \item \textbf{Original Two-Way Streets:} At least one directional lane must remain open to traffic to avoid cutting off connections entirely:
+    \begin{equation}
+        \texttt{streets\_state}_{i \cdot n + j} + \texttt{streets\_state}_{j \cdot n + i} \ge 1
+    \end{equation}
+    \begin{lstlisting}[language=C++]
+    if (streets_graph[i][j] != -1 && streets_graph[j][i] != -1) {
+        model.add(streets_state[i * n + j] + streets_state[j * n + i] >= 1);  
+    }
+    \end{lstlisting}
+    \item \textbf{Original One-Way Streets ($i \to j$):} Cannot be modified. They are clamped permanently to their initial direction:
+    \begin{equation}
+        \texttt{streets\_state}_{i \cdot n + j} = 1, \quad \texttt{streets\_state}_{j \cdot n + i} = 0
+    \end{equation}
+    \begin{lstlisting}[language=C++]
+    if (streets_graph[i][j] != -1 && streets_graph[j][i] == -1) {
+        model.add(streets_state[i * n + j] == 1);  
+        model.add(streets_state[j * n + i] == 0);  
+    } else if (streets_graph[i][j] == -1 && streets_graph[j][i] != -1) {
+        model.add(streets_state[i * n + j] == 0);  
+        model.add(streets_state[j * n + i] == 1);  
+    }
+    \end{lstlisting}
+    
+    \item \textbf{Non-existent Connections:} Forced to zero across both directional mappings:
+    \begin{equation}
+        \texttt{streets\_state}_{i \cdot n + j} = 0, \quad \texttt{streets\_state}_{j \cdot n + i} = 0
+    \end{equation}
+    \begin{lstlisting}[language=C++]
+    if (streets_graph[i][j] == -1 || streets_graph[j][i] == -1) {
+        model.add(streets_state[i * n + j] == 0);  
+        model.add(streets_state[j * n + i] == 0);  
+    }
+    \end{lstlisting}
+\end{itemize}
+
+\subsection*{Path Validity}
+A route cannot be transmit if the street is not active. For every source-destination pair $(s,d)$ and every street segment $(i,j)$:
+\begin{equation}
+    \texttt{current\_paths}[s][d][i][j] \le \texttt{streets\_state}_{i \cdot n + j} \quad \forall (s,d), \, \forall (i,j)
+\end{equation}
+
+\subsection*{Continuous Path Constraints}
+To ensure an uninterrupted path from each source $s$ to destination $d$, every node $i$ evaluates its balancing net flow (outgoing flow - incoming flow):
+Let define the net flow at node $i$ for the source-destination pair $(s,d)$ as:
+\begin{equation}
+    outflow_i = \sum_{j : T_{i,j} \neq -1} \texttt{current\_paths}[s][d][i][j]
+\end{equation}
+\begin{equation}
+    inflow_i = \sum_{j : T_{j,i} \neq -1} \texttt{current\_paths}[s][d][j][i]
+\end{equation}
+
+\begin{equation}
+    outflow_i - inflow_i = 
+    \begin{cases} 
+        1 & \text{if } i = s \quad \text{(Source Node)} \\
+        -1 & \text{if } i = d \quad \text{(Destination Node)} \\
+        0 & \text{otherwise} \quad \text{(Intermediate Crossings)}
+    \end{cases}
+\end{equation}
+
+\subsection*{Time Limit Constraints}
+Using the precalculated matrices from the input, the cumulative edge weights of active path indicators must stay within bounded limits:
+\begin{equation}
+    \sum_{i=0}^{n-1} \sum_{j=0}^{n-1} \left( \text{\texttt{streets\_graph}}[i][j] \times \texttt{current\_paths}[s][d][i][j] \right) \le \text{\texttt{max\_time\_allowed\_matrix}}[s][d]
+\end{equation}
+
+\section*{Objective Calculation}
+The objective function is to maximize the number of conversions. A way to calculate this is to sum the contributions from each street segment, and to calculate the contribution of each segment can be done as follows:
+\begin{equation}
+    \text{Maximize } \sum_{i=0}^{n-1} \sum_{j=i+1}^{n-1} \left( 2 - (\texttt{streets\_state}_{i \cdot n + j} + \texttt{streets\_state}_{j \cdot n + i}) \right)
+\end{equation}
+If both directions of a two-way street stay open, the contribution is $2 - (1+1) = 0$. If one lane is closed, the contribution is $2 - (1+0) = 1$. 
+This way, the objective function will be maximized when we convert as many two-way streets as possible, while still satisfying all the constraints.
