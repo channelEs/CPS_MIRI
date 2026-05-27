@@ -1,6 +1,6 @@
 \section*{Introduction}
 This is the report for the Integer Linear Programming (ILP) model to solve the Street Directionality Problem (SDP).
-I will jump directly to the variables, then the contraints, the objective function, and some implementation notes. 
+I will jump directly to the variables, then the contraints and the objective function. 
 The code is in my public \href{https://github.com/channelEs/CPS_MIRI}{GitHub repository}.
 
 \section*{Variables}
@@ -30,7 +30,7 @@ The code is in my public \href{https://github.com/channelEs/CPS_MIRI}{GitHub rep
             0 & \text{otherwise}
         \end{cases}
     \end{equation}
-    That is why it uses four dimensions: the first two for the source and destination, and the last two for the physical street segments.
+    That is why it uses four dimensions: the first two for the source and destination, and the last two for every street combination possible.
 \end{itemize}
 
 \subsection*{Objective Variable}
@@ -42,6 +42,8 @@ The code is in my public \href{https://github.com/channelEs/CPS_MIRI}{GitHub rep
 \section*{Constraints}
 
 \subsection*{Street Constraints}
+The idea is to keep the original structure of the graph. Only the two-way streets are allowed to be converted into one-way streets, the rest needs to be constrained to their original state.
+
 For every unique node pair $(i, j)$ where $j > i$:
 \begin{itemize}
     \item \textbf{Original Two-Way Streets:} At least one directional lane must remain open to traffic to avoid cutting off connections entirely:
@@ -80,13 +82,16 @@ For every unique node pair $(i, j)$ where $j > i$:
 \end{itemize}
 
 \subsection*{Path Validity}
-A route cannot be transmit if the street is not active. For every source-destination pair $(s,d)$ and every street segment $(i,j)$:
+A route cannot be transmit if the street is not active. 
+
+For every source-destination pair $(s,d)$ and every street segment $(i,j)$:
 \begin{equation}
     \texttt{current\_paths}[s][d][i][j] \le \texttt{streets\_state}_{i \cdot n + j} \quad \forall (s,d), \, \forall (i,j)
 \end{equation}
 
 \subsection*{Continuous Path Constraints}
 To ensure an uninterrupted path from each source $s$ to destination $d$, every node $i$ evaluates its balancing net flow (outgoing flow - incoming flow):
+
 Let define the net flow at node $i$ for the source-destination pair $(s,d)$ as:
 \begin{equation}
     outflow_i = \sum_{j : T_{i,j} \neq -1} \texttt{current\_paths}[s][d][i][j]
