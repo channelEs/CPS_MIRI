@@ -15,7 +15,7 @@ for i in $(seq $START $END); do
     echo "RUN INSTANCE $INPUT..."
     ./sdp_ilp < "$INPUT" > "$OUTPUT"
     
-    ../checker < "$OUTPUT"
+    ./checker < "$OUTPUT"
     echo "-----------------------------------"
 done
 
