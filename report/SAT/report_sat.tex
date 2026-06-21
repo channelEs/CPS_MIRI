@@ -53,7 +53,7 @@ This means that a conversion is counted exactly when one direction remains open 
 The reachability variables are initialized with the source crossing and then propagated through active streets.
 If a node is reachable with some travel time, then it can also reach its neighbors through an open street while respecting the accumulated cost.
 
-\subsection*{QoS Limit}
+\subsection*{Travel Time Limit}
 For every source-destination pair $(s,d)$, the final travel time must not exceed the allowed degradation limit:
 \begin{equation}
     R_{s,d,\,L_{s,d}} = 1
