@@ -1,0 +1,83 @@
+\section*{Introduction}
+This is the report for the SAT model to solve the Street Directionality Problem (SDP).
+The idea is to encode the problem with DIMACS formulas and solve it with the \texttt{kissat} SAT solver.
+The code is in my public \href{https://github.com/channelEs/CPS_MIRI}{GitHub repository}.
+\section*{Variables}
+
+\subsection*{Decision Variables}
+\begin{itemize}
+    \item \texttt{E\_{i,j}} (
+    \textit{Boolean}):
+    This variable indicates whether the directed street from crossing $i$ to crossing $j$ is open.
+    A value of $1$ means the lane is active, while $0$ means it is closed.
+\end{itemize}
+
+\subsection*{Conversion Variables}
+\begin{itemize}
+    \item \texttt{C\_m} (\textit{Boolean}):
+    For each original two-way street $m$, this variable is true when exactly one of its two directions is closed.
+    These are the variables used in the objective function.
+\end{itemize}
+
+\subsection*{Reachability Variables}
+\begin{itemize}
+    \item \texttt{R\_{s,i,w}} (\textit{Boolean}):
+    This variable represents whether crossing $i$ is reachable from source $s$ within accumulated travel time $w$.
+    These variables are used to encode the QoS constraints.
+\end{itemize}
+
+\subsection*{Cardinality Variables}
+\begin{itemize}
+    \item \texttt{S\_{m,r}} (\textit{Boolean}):
+    Auxiliary variables used by the sequential counter that enforces the minimum number of conversions.
+\end{itemize}
+
+\section*{Constraints}
+
+\subsection*{Street Integrity}
+The solver must preserve the original graph structure.
+\begin{itemize}
+    \item Non-existent streets are forced to $0$.
+    \item Original one-way streets are kept fixed.
+    \item Original two-way streets must keep at least one direction open.
+\end{itemize}
+
+\subsection*{Conversion Encoding}
+For each original two-way street, the model links the direction variables with the conversion variable:
+\begin{equation}
+    C_m \leftrightarrow \neg(E_{u,v} \wedge E_{v,u})
+\end{equation}
+This means that a conversion is counted exactly when one direction remains open and the other is closed.
+
+\subsection*{Reachability Propagation}
+The reachability variables are initialized with the source crossing and then propagated through active streets.
+If a node is reachable with some travel time, then it can also reach its neighbors through an open street while respecting the accumulated cost.
+
+\subsection*{QoS Limit}
+For every source-destination pair $(s,d)$, the final travel time must not exceed the allowed degradation limit:
+\begin{equation}
+    R_{s,d,\,L_{s,d}} = 1
+\end{equation}
+where $L_{s,d}$ is the maximum allowed travel time computed from the original shortest path and the percentage $P$.
+
+\subsection*{Cardinality Constraint}
+The model uses a sequential counter to enforce a minimum number of converted streets.
+The linear search starts from the maximum possible number of conversions and decreases until the formula becomes satisfiable.
+
+\section*{Objective Calculation}
+The objective is to maximize the number of converted two-way streets.
+If $N$ is the total number of original two-way streets, then the objective can be written as:
+\begin{equation}
+    \text{maximize } \sum_{m=0}^{N-1} C_m
+\end{equation}
+Equivalently, the search checks whether it is possible to convert at least $K$ streets, starting from the largest $K$ and going down until SAT is found.
+
+% \section*{Some notes}
+% \textbf{Solver strategy:}
+% The implementation builds a CNF file, runs \texttt{kissat}, and reads the satisfying assignment from the solver output.
+
+% \textbf{Optimization method:}
+% A linear search wrapper is used over the objective value. This makes the SAT approach simple and direct, while still producing an optimal solution when time allows.
+
+% \textbf{Code notes:}
+% The SAT implementation is kept separate from the CP and ILP versions, but all three solve the same SDP instance format and produce the same output structure.
